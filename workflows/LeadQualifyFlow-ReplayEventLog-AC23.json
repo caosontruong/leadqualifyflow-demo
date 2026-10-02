@@ -1,0 +1,113 @@
+{
+  "name": "LeadQualifyFlow - Replay Event Log (AC-23)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "replay-event-log",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_replay",
+      "name": "Webhook - Replay Event Log",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        300
+      ],
+      "webhookId": "95845bfc-43f5-4152-a5c4-42adf88242c3"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "events",
+        "key": "lead.ingested",
+        "keyType": "list",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "id": "redis_get_event_log",
+      "name": "Redis - Get Event Log (List Range)",
+      "position": [
+        -176,
+        300
+      ],
+      "credentials": {
+        "redis": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const rawEvents = $json.events || [];\nconst parsed = rawEvents.map(e => { try { return JSON.parse(e); } catch { return { raw: e }; } });\nreturn { json: { totalEvents: parsed.length, events: parsed } };"
+      },
+      "id": "parse_events",
+      "name": "Parse Events",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond_replay",
+      "name": "Respond Replay",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        272,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Replay Event Log": {
+      "main": [
+        [
+          {
+            "node": "Redis - Get Event Log (List Range)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Get Event Log (List Range)": {
+      "main": [
+        [
+          {
+            "node": "Parse Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Events": {
+      "main": [
+        [
+          {
+            "node": "Respond Replay",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

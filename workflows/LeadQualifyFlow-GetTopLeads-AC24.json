@@ -1,0 +1,173 @@
+{
+  "name": "LeadQualifyFlow - Get Top Leads (AC-24)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-top-leads",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_top_leads",
+      "name": "Webhook - Get Top Leads",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        304
+      ],
+      "webhookId": "68d1bb6b-b3bf-4c29-8d05-37b220f735d6"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "scores",
+        "key": "lead:scores",
+        "keyType": "hash",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "id": "redis_get_lead_scores",
+      "name": "Redis - Get Lead Scores (Hash)",
+      "position": [
+        -176,
+        304
+      ],
+      "credentials": {
+        "redis": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const scores = $json.scores || {};\nconst limit = Number($('Webhook - Get Top Leads').item.json.body.limit) || 10;\nconst ranked = Object.entries(scores)\n  .map(([leadId, score]) => ({ leadId, score: Number(score) }))\n  .sort((a, b) => b.score - a.score)\n  .slice(0, limit);\nreturn { json: { totalLeadsRanked: Object.keys(scores).length, topLeads: ranked } };"
+      },
+      "id": "rank_top_n",
+      "name": "Rank Top N",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond_top_leads",
+      "name": "Respond Top Leads",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        672,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT lead_id, name, email, source, lead_grade FROM leads WHERE lead_id = ANY($1);",
+        "options": {
+          "queryReplacement": "={{ [ $json.topLeads.map(l => l.leadId) ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "id": "fetch_lead_details",
+      "name": "Fetch Lead Details",
+      "position": [
+        240,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Postgres"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ranked = $('Rank Top N').first().json.topLeads;\nconst totalLeadsRanked = $('Rank Top N').first().json.totalLeadsRanked;\nconst details = {};\nfor (const item of items) { if (item.json.lead_id) details[item.json.lead_id] = item.json; }\nconst enriched = ranked.map(r => ({\n  leadId: r.leadId,\n  score: r.score,\n  name: (details[r.leadId] || {}).name || null,\n  email: (details[r.leadId] || {}).email || null,\n  source: (details[r.leadId] || {}).source || null,\n  leadGrade: (details[r.leadId] || {}).lead_grade || null\n}));\nreturn [{ json: { totalLeadsRanked, topLeads: enriched } }];"
+      },
+      "id": "merge_lead_details",
+      "name": "Merge Lead Details",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        304
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Get Top Leads": {
+      "main": [
+        [
+          {
+            "node": "Redis - Get Lead Scores (Hash)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Get Lead Scores (Hash)": {
+      "main": [
+        [
+          {
+            "node": "Rank Top N",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rank Top N": {
+      "main": [
+        [
+          {
+            "node": "Fetch Lead Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Lead Details": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Lead Details": {
+      "main": [
+        [
+          {
+            "node": "Respond Top Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "active": false
+}

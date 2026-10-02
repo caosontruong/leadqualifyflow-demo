@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Expression that reads an environment variable (not a real key value)"
+regexes = ['''env\.N8N_API_KEY''']

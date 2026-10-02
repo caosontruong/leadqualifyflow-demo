@@ -1,0 +1,142 @@
+{
+  "name": "LeadQualifyFlow - Semantic Search (AC-21)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "semantic-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_semantic_search",
+      "name": "Webhook - Semantic Search",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        300
+      ],
+      "webhookId": "0c248532-dc0e-4c3d-bf93-7811d759382a"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'all-minilm', input: $json.body.query || '' }) }}",
+        "options": {}
+      },
+      "id": "embed_query",
+      "name": "Embed Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -176,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT lead_id, name, message, source, lead_grade, round((1 - (message_embedding <=> $1::vector))::numeric, 4) AS similarity FROM leads WHERE message_embedding IS NOT NULL ORDER BY message_embedding <=> $1::vector LIMIT $2;",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify(($json.embeddings || [[]])[0]), String($('Webhook - Semantic Search').item.json.body.limit || 5) ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "id": "find_similar_leads",
+      "name": "Find Similar Leads",
+      "position": [
+        48,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { results: items.map(i => i.json) } }];"
+      },
+      "id": "format_results",
+      "name": "Format Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond_results",
+      "name": "Respond Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        496,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Semantic Search": {
+      "main": [
+        [
+          {
+            "node": "Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Query": {
+      "main": [
+        [
+          {
+            "node": "Find Similar Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Similar Leads": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Results": {
+      "main": [
+        [
+          {
+            "node": "Respond Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

@@ -1,0 +1,2890 @@
+{
+  "name": "LeadQualifyFlow - MVP-01",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_-_lead_intake",
+      "name": "Webhook - Lead Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2400,
+        304
+      ],
+      "webhookId": "d9d4a9db-1ca6-419c-9bcf-340c859fb4ef"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "receivedAt",
+              "name": "receivedAt",
+              "type": "string",
+              "value": "={{$now}}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "stamp_received_at",
+      "name": "Stamp Received At",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -96,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "v_name",
+              "leftValue": "={{$json.body.name}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "v_contact",
+              "leftValue": "={{$json.hasValidContact}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "v_message",
+              "leftValue": "={{$json.body.message}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate",
+      "name": "Validate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2208,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-haiku-4-5-20251001"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Lead info:\nName: {{$('Normalize Lead Shape').item.json.body.name}}\nEmail: {{$('Normalize Lead Shape').item.json.body.email}}\nPhone: {{$('Normalize Lead Shape').item.json.body.phone || 'not provided'}}\nMessage: {{$('Normalize Lead Shape').item.json.body.message}}\nSource: {{$('Normalize Lead Shape').item.json.body.source || 'unknown'}}"
+            }
+          ]
+        },
+        "options": {
+          "system": "You are a lead-qualification assistant for a sales team. Classify inbound leads into hot, warm, or cold based on these rules:\n\n- hot: has clear purchase/usage intent (mentions price, budget, or a start timeline) AND has valid contact info for the lead's source:\n  - Form-based sources (source is typeform, calendly, shopify, tally, google_forms, or facebook): valid contact info means BOTH email and phone are present.\n  - Chat-based sources (source is telegram, zalo, whatsapp, facebook_messenger, facebook_comment, or facebook_rating): these channels never collect a real email by design, so do NOT require email here. Valid contact info means phone is present (a real phone number, OR the channel's own fallback identifier such as \"telegram:12345\" / \"messenger:12345\" / \"zalo:12345\" — replying through the same chat channel is a reliable enough way to reach the lead).\n- warm: shows interest but intent is unclear, OR contact info is partially missing (for form-based sources: missing email or phone; for chat-based sources: message text alone with no clear buying intent).\n- cold: generic/spam-like message, OR contact info required by the source's rule above is missing entirely.\n\nIn addition to `classification`, also assess 3 independent signals used by a separate deterministic scoring engine (do NOT let these override your classification rules above — they are reported alongside it, not instead of it):\n- intent: \"high\" | \"medium\" | \"low\" — how clear/strong the buying or usage intent is (mentions price/budget/timeline = high; vague interest = medium; no interest signal = low).\n- problem_clarity: \"high\" | \"medium\" | \"low\" — how clearly the lead describes their actual need/problem (specific use case described = high; vague = medium; no need described = low).\n- urgency: \"high\" | \"medium\" | \"low\" — how soon the lead wants to act (explicit \"this week\"/\"ASAP\"/\"today\" = high; a rough timeframe = medium; no timeframe mentioned = low).\n\nAlways respond with strict JSON only, no extra text, no markdown code fences, in exactly this shape:\n{\"classification\": \"hot\" | \"warm\" | \"cold\", \"confidence\": 0.0-1.0, \"reasoning\": \"short string\", \"draft_reply\": \"short draft reply to the lead\", \"intent\": \"high\" | \"medium\" | \"low\", \"problem_clarity\": \"high\" | \"medium\" | \"low\", \"urgency\": \"high\" | \"medium\" | \"low\"}\n\nExample 1\nInput: name: Jane Doe, email: jane@acme.com, phone: +1-555-0100, message: \"We need this rolled out to 200 seats by next month, what's the pricing for the Pro plan?\"\nOutput: {\"classification\": \"hot\", \"confidence\": 0.92, \"reasoning\": \"Clear budget/timeline intent and full contact info provided.\", \"draft_reply\": \"Hi Jane, thanks for reaching out! I'd be glad to walk you through Pro plan pricing for 200 seats and get you started before next month.\", \"intent\": \"high\", \"problem_clarity\": \"high\", \"urgency\": \"medium\"}\n\nExample 2\nInput: name: Sam Lee, email: (missing), phone: (missing), message: \"just checking this out, looks interesting\"\nOutput: {\"classification\": \"cold\", \"confidence\": 0.85, \"reasoning\": \"Generic message, no clear intent, no contact info provided.\", \"draft_reply\": \"Hi Sam, thanks for checking us out! Feel free to share your email if you'd like more details.\", \"intent\": \"low\", \"problem_clarity\": \"low\", \"urgency\": \"low\"}\n\nExample 3\nInput: name: Alex Kim, email: alex@example.com, phone: (missing), message: \"Interested in learning more about your product, not sure yet if it fits our use case.\"\nOutput: {\"classification\": \"warm\", \"confidence\": 0.6, \"reasoning\": \"Interest shown but intent unclear and phone missing.\", \"draft_reply\": \"Hi Alex, happy to help you evaluate whether this fits your use case, want to hop on a quick call this week?\", \"intent\": \"medium\", \"problem_clarity\": \"medium\", \"urgency\": \"low\"}\n\nExample 4\nInput: name: Facebook User 8927715724, email: (missing), phone: telegram:8927715724, message: \"I run a small business and I'm ready to set up an AI automation system this week. Can someone call me back today? I want to get started ASAP.\", source: telegram\nOutput: {\"classification\": \"hot\", \"confidence\": 0.9, \"reasoning\": \"Clear budget/timeline purchase intent; source is chat-based so the channel fallback identifier counts as valid contact info instead of requiring email.\", \"draft_reply\": \"Thanks for reaching out! We can get you started this week - I'll have someone call you back today, what's the best number to reach you at?\", \"intent\": \"high\", \"problem_clarity\": \"high\", \"urgency\": \"high\"}",
+          "maxTokens": 500,
+          "temperature": 0
+        }
+      },
+      "id": "claude_haiku_-_classify_lead",
+      "name": "Claude Haiku - Classify Lead",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [
+        3360,
+        208
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Anthropic"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nlet raw = '';\nif (typeof $json.content === 'string') {\n  raw = $json.content;\n} else if (Array.isArray($json.content) && $json.content[0] && $json.content[0].text) {\n  raw = $json.content[0].text;\n} else if (typeof $json.text === 'string') {\n  raw = $json.text;\n} else if (typeof $json.message === 'string') {\n  raw = $json.message;\n} else {\n  raw = JSON.stringify($json);\n}\n\nlet result;\ntry {\n  const match = raw.match(/\\{[\\s\\S]*\\}/);\n  if (!match) throw new Error('no JSON block found in AI response');\n  result = JSON.parse(match[0]);\n  if (!result.classification) throw new Error('missing classification field');\n} catch (e) {\n  result = { classification: 'cold', confidence: 0, reasoning: 'parse_error: ' + e.message, draft_reply: '', error: true };\n}\n\nconst allowedLevel = ['high', 'medium', 'low'];\nconst normLevel = (v, fallback) => (allowedLevel.includes(v) ? v : fallback);\n\nreturn {\n  json: {\n    classification: result.classification,\n    confidence: typeof result.confidence === 'number' ? result.confidence : 0,\n    reasoning: result.reasoning || '',\n    draft_reply: result.draft_reply || '',\n    error: result.error === true,\n    intent: normLevel(result.intent, 'low'),\n    problem_clarity: normLevel(result.problem_clarity, 'low'),\n    urgency: normLevel(result.urgency, 'low')\n  }\n};\n"
+      },
+      "id": "parse_claude_json",
+      "name": "Parse Claude JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3584,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f_name",
+              "name": "Name",
+              "type": "string",
+              "value": "={{$('Compute Contact Validity').item.json.body.name}}"
+            },
+            {
+              "id": "f_email",
+              "name": "Email",
+              "type": "string",
+              "value": "={{$('Compute Contact Validity').item.json.body.email}}"
+            },
+            {
+              "id": "f_phone",
+              "name": "Phone",
+              "type": "string",
+              "value": "={{$('Compute Contact Validity').item.json.body.phone}}"
+            },
+            {
+              "id": "f_message",
+              "name": "Message",
+              "type": "string",
+              "value": "={{$('Compute Contact Validity').item.json.body.message}}"
+            },
+            {
+              "id": "f_class",
+              "name": "Classification",
+              "type": "string",
+              "value": "={{$json.leadGrade}}"
+            },
+            {
+              "id": "f_conf",
+              "name": "Confidence",
+              "type": "number",
+              "value": "={{$json.confidence}}"
+            },
+            {
+              "id": "f_draft",
+              "name": "Draft Reply",
+              "type": "string",
+              "value": "={{$json.draft_reply}}"
+            },
+            {
+              "id": "f_recv",
+              "name": "Received At",
+              "type": "string",
+              "value": "={{$('Compute Contact Validity').item.json.receivedAt}}"
+            },
+            {
+              "id": "f_source",
+              "name": "Source",
+              "type": "string",
+              "value": "={{$('Compute Contact Validity').item.json.body.source}}"
+            },
+            {
+              "id": "f_chatid",
+              "name": "Chat ID",
+              "type": "string",
+              "value": "={{$('Compute Contact Validity').item.json.body.chatId}}"
+            },
+            {
+              "id": "f_leadscore",
+              "name": "Lead Score",
+              "type": "number",
+              "value": "={{$json.leadScore}}"
+            },
+            {
+              "id": "f_fitscore",
+              "name": "Fit Score",
+              "type": "number",
+              "value": "={{$json.fitScore}}"
+            },
+            {
+              "id": "f_intentscore",
+              "name": "Intent Score",
+              "type": "number",
+              "value": "={{$json.intentScore}}"
+            },
+            {
+              "id": "f_scorereason",
+              "name": "Score Reason",
+              "type": "string",
+              "value": "={{JSON.stringify($json.scoreReason)}}"
+            },
+            {
+              "id": "f_scoreversion",
+              "name": "Score Version",
+              "type": "string",
+              "value": "={{$json.scoreVersion}}"
+            },
+            {
+              "id": "f_legacyclass",
+              "name": "Legacy Classification (BR-01)",
+              "type": "string",
+              "value": "={{$json.legacyClassification}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format_lead",
+      "name": "Format Lead",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        4512,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "s_hot",
+                    "leftValue": "={{$json.Classification}}",
+                    "rightValue": "hot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "hot"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "s_warm",
+                    "leftValue": "={{$json.Classification}}",
+                    "rightValue": "warm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "warm"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "s_cold",
+                    "leftValue": "={{$json.Classification}}",
+                    "rightValue": "cold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "cold"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "route_by_classification",
+      "name": "Route by Classification",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        5200,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.airtable.com/v0/' + $env.AIRTABLE_BASE_ID + '/' + encodeURIComponent($env.AIRTABLE_TABLE_NAME) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.AIRTABLE_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fields: { Name: $('Format Lead').item.json.Name, Email: $('Format Lead').item.json.Email, Phone: $('Format Lead').item.json.Phone, Message: $('Format Lead').item.json.Message, Classification: $('Format Lead').item.json.Classification, Confidence: $('Format Lead').item.json.Confidence, 'Draft Reply': $('Format Lead').item.json['Draft Reply'], 'Received At': $('Format Lead').item.json['Received At'], Source: $('Format Lead').item.json.Source, 'Chat ID': $('Format Lead').item.json['Chat ID'], 'Lead Score': $('Format Lead').item.json['Lead Score'], 'Fit Score': $('Format Lead').item.json['Fit Score'], 'Intent Score': $('Format Lead').item.json['Intent Score'], 'Score Reason': $('Format Lead').item.json['Score Reason'], 'Score Version': $('Format Lead').item.json['Score Version'], 'Legacy Classification': $('Format Lead').item.json['Legacy Classification (BR-01)'], Customer: [ $('Resolve Customer Identity').item.json.customerId ], 'Outreach Channel': $('Compute Outreach Channel').item.json.outreachChannels, 'Outreach Identifier': $('Compute Outreach Channel').item.json.outreachIdentifier, 'Phone (In Message)': $('Compute Outreach Channel').item.json.messagePhone } }) }}",
+        "options": {}
+      },
+      "id": "write_lead_to_airtable",
+      "name": "Write Lead to Airtable",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        5424,
+        -80
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: `:fire: *New HOT lead*\\n*Name:* ${$('Format Lead').item.json.Name}\\n*Email:* ${$('Format Lead').item.json.Email || 'N/A'}\\n*Phone:* ${$('Format Lead').item.json.Phone || 'N/A'}\\n*Message:* ${$('Format Lead').item.json.Message}\\n*Draft reply:* ${$('Format Lead').item.json['Draft Reply']}` }) }}",
+        "options": {}
+      },
+      "id": "notify_slack_(hot_lead)",
+      "name": "Notify Slack (Hot Lead)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        6352,
+        -368
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "respond_200",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5664,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'error', message: 'invalid payload: name, valid email, and message are required' }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond_400",
+      "name": "Respond 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2432,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body || {};\nlet name, email, phone, message, source, chatId, fbMessageId, fbCommentId;\n\nif (Array.isArray(body.field_data) && body.leadgen_id) {\n  // Facebook Lead Ads\n  const get = (key) => {\n    const entry = body.field_data.find(f => f.name === key);\n    return entry && Array.isArray(entry.values) ? entry.values[0] : undefined;\n  };\n  name = get('full_name') || get('name');\n  email = get('email');\n  phone = get('phone_number') || get('phone');\n  message = get('message') || 'Lead submitted via Facebook Lead Ads form (no free-text field provided)';\n  source = 'facebook';\n} else if (body.event === 'invitee.created' && body.payload) {\n  // Calendly\n  const p = body.payload;\n  name = p.name;\n  email = p.email;\n  phone = p.text_reminder_number || null;\n  if (Array.isArray(p.questions_and_answers) && p.questions_and_answers.length) {\n    message = p.questions_and_answers.map(qa => `${qa.question}: ${qa.answer}`).join(' | ');\n  } else {\n    message = 'Booked a call via Calendly';\n  }\n  source = 'calendly';\n} else if (Array.isArray(body.line_items) && (body.customer || body.email)) {\n  // Shopify\n  const c = body.customer || {};\n  name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || undefined;\n  email = c.email || body.email;\n  phone = c.phone || body.phone;\n  message = body.note || `Shopify order/checkout event — ${body.line_items.length} item(s)`;\n  source = 'shopify';\n} else if (body.event_type === 'form_response' && body.form_response) {\n  // Typeform (real webhook, MVP-01c)\n  const answers = Array.isArray(body.form_response.answers) ? body.form_response.answers : [];\n  const getByFieldType = (type) => answers.find(a => a.field && a.field.type === type);\n  const nameAns = getByFieldType('short_text');\n  const emailAns = getByFieldType('email');\n  const phoneAns = getByFieldType('phone_number');\n  const messageAns = getByFieldType('long_text');\n  name = nameAns ? nameAns.text : undefined;\n  email = emailAns ? emailAns.email : undefined;\n  phone = phoneAns ? phoneAns.phone_number : undefined;\n  message = messageAns ? messageAns.text : undefined;\n  source = 'typeform';\n} else if (body.update_id !== undefined && body.message) {\n  // Telegram (MVP-01e, fallback identifier added in MVP-01g)\n  const m = body.message;\n  const from = m.from || {};\n  name = [from.first_name, from.last_name].filter(Boolean).join(' ').trim() || undefined;\n  email = undefined;\n  phone = (m.contact && m.contact.phone_number) || ('telegram:' + (m.chat && m.chat.id));\n  message = m.text;\n  source = 'telegram';\n  chatId = m.chat && m.chat.id;\n} else if (typeof body.event_name === 'string' && body.event_name.startsWith('user_send_') && body.sender) {\n  // Zalo OA (MVP-01e, fallback identifier + name placeholder added in MVP-01g)\n  name = 'Zalo User ' + body.sender.id;\n  email = undefined;\n  phone = 'zalo:' + body.sender.id;\n  message = body.message && body.message.text;\n  source = 'zalo';\n} else if (body.object === 'whatsapp_business_account' && Array.isArray(body.entry)) {\n  // WhatsApp Business Cloud API (MVP-01e)\n  const value = body.entry[0] && body.entry[0].changes && body.entry[0].changes[0] && body.entry[0].changes[0].value;\n  const contact = value && Array.isArray(value.contacts) ? value.contacts[0] : undefined;\n  const msg = value && Array.isArray(value.messages) ? value.messages[0] : undefined;\n  name = contact && contact.profile ? contact.profile.name : undefined;\n  email = undefined;\n  phone = msg ? msg.from : undefined;\n  message = msg && msg.text ? msg.text.body : undefined;\n  source = 'whatsapp';\n} else if (body.eventType === 'FORM_RESPONSE' && body.data && Array.isArray(body.data.fields)) {\n  // Tally Forms (MVP-01e)\n  const fields = body.data.fields;\n  const getByType = (type) => fields.find(f => f.type === type);\n  const nameField = getByType('INPUT_TEXT');\n  const emailField = getByType('INPUT_EMAIL');\n  const phoneField = getByType('INPUT_PHONE_NUMBER');\n  const messageField = getByType('TEXTAREA');\n  name = nameField ? nameField.value : undefined;\n  email = emailField ? emailField.value : undefined;\n  phone = phoneField ? phoneField.value : undefined;\n  message = messageField ? messageField.value : undefined;\n  source = 'tally';\n} else if (body.object === 'page' && Array.isArray(body.entry) && body.entry[0] && Array.isArray(body.entry[0].messaging)) {\n  // Facebook Messenger (MVP-03a, 2026-09-23)\n  const msg = body.entry[0].messaging[0];\n  const senderId = msg.sender && msg.sender.id;\n  name = senderId ? ('Facebook User ' + senderId) : undefined;\n  email = undefined;\n  phone = senderId ? ('messenger:' + senderId) : undefined;\n  message = msg.message && msg.message.text;\n  source = 'facebook_messenger';\n  fbMessageId = msg.message && msg.message.mid;\n} else if (body.object === 'page' && Array.isArray(body.entry) && body.entry[0] && Array.isArray(body.entry[0].changes) && body.entry[0].changes[0] && body.entry[0].changes[0].field === 'feed') {\n  // Facebook Page Feed event (MVP-03b, sửa 2026-09-25 sau live-test thật phát hiện 2 gap):\n  // (1) field `feed` bắn cho MỌI hoạt động trên bài đăng (status/photo/like/share...), không\n  //     chỉ comment — bản gốc chỉ khớp khi item==='comment' nên item khác (vd. 'status' lúc đăng\n  //     bài mới) rơi vào nhánh fallback phẳng và bị Validate từ chối 400 oan.\n  // (2) payload comment thật của Facebook KHÔNG kèm field `message` (khác payload mô phỏng lúc\n  //     self-test) — nội dung comment phải fetch riêng qua Graph API bằng comment_id, xem node\n  //     \"Fetch FB Comment Text\" + \"Merge FB Comment Message\" chèn sau Normalize.\n  const value = body.entry[0].changes[0].value || {};\n  if (value.item !== 'comment' || value.verb !== 'add') {\n    // Không phải comment mới (status/photo/like/share/edit/delete...) — ignore, không coi là lead\n    name = undefined; email = undefined; phone = undefined; message = undefined;\n    source = 'facebook_comment_ignore';\n  } else {\n    name = value.from && value.from.name;\n    email = undefined;\n    phone = undefined;\n    message = undefined;\n    source = 'facebook_comment';\n    fbCommentId = value.comment_id;\n  }\n} else if (body.object === 'page' && Array.isArray(body.entry) && body.entry[0] && Array.isArray(body.entry[0].changes) && body.entry[0].changes[0] && body.entry[0].changes[0].field === 'ratings') {\n  // Facebook Page Ratings/Reviews (MVP-05, 2026-09-26). Field 'ratings' bắn\n  // cho NHIỀU loại sự kiện (rating mới, comment/reaction trên 1 rating có\n  // sẵn) — lọc theo có nội dung text hay không, giống bài học item-type ở\n  // MVP-03b (Comment).\n  const value = body.entry[0].changes[0].value || {};\n  const content = (typeof value.review_text === 'string' && value.review_text) ||\n                  (typeof value.message === 'string' && value.message) || null;\n  if (!content) {\n    // Reaction-only hoặc rating không kèm text — không đủ tín hiệu làm lead\n    name = undefined; email = undefined; phone = undefined; message = undefined;\n    source = 'facebook_rating_ignore';\n  } else {\n    const phoneMatch = content.match(/(0|\\+84)\\d{9,10}/);\n    const stars = value.rating ? (value.rating + '/5 sao') : (value.recommendation_type || 'n/a');\n    name = value.reviewer_name;\n    email = undefined;\n    phone = phoneMatch ? phoneMatch[0] : undefined;\n    message = '[Rating: ' + stars + '] ' + content;\n    source = 'facebook_rating';\n  }\n} else {\n  // Fallback: flat/baseline shape, passthrough unchanged (also covers Google Forms via Apps Script relay)\n  name = body.name;\n  email = body.email;\n  phone = body.phone;\n  message = body.message;\n  source = body.source;\n}\n\nreturn {\n  json: {\n    ...$json,\n    body: { name, email, phone, message, source, chatId },\n    _fbMessageId: fbMessageId,\n    _fbCommentId: fbCommentId\n  }\n};"
+      },
+      "id": "normalize_lead_shape",
+      "name": "Normalize Lead Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const headers = $json.headers || {};\nconst body = $json.body || {};\n\nfunction simpleHash(str) {\n  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;\n  for (let i = 0; i < str.length; i++) {\n    const ch = str.charCodeAt(i);\n    h1 = Math.imul(h1 ^ ch, 2654435761);\n    h2 = Math.imul(h2 ^ ch, 1597334677);\n  }\n  h1 = (h1 ^ (h1 >>> 16)) >>> 0;\n  h2 = (h2 ^ (h2 >>> 16)) >>> 0;\n  return h1.toString(16) + h2.toString(16);\n}\n\nlet dedupKey = headers['x-shopify-webhook-id']\n  || body.event_id\n  || (body.payload && body.payload.uri)\n  || (body.entry && body.entry[0] && body.entry[0].messaging && body.entry[0].messaging[0] && body.entry[0].messaging[0].message && body.entry[0].messaging[0].message.mid)\n  || (body.entry && body.entry[0] && body.entry[0].changes && body.entry[0].changes[0] && body.entry[0].changes[0].value && body.entry[0].changes[0].value.comment_id)\n  || null;\n\n// Facebook Rating: open_graph_story_id một mình không đủ — Facebook gửi lại\n// (add/edit) kể cả khi nội dung review giống hệt HOẶC khi khách thật sự sửa\n// nội dung khác hẳn. Kết hợp thêm hash nội dung review: cùng ID + cùng nội\n// dung → dedup (đúng retry); cùng ID + nội dung khác (khách sửa review) →\n// KHÔNG dedup, coi là lead mới (đúng quyết định Founder 2026-09-26).\nconst ratingValue = body.entry && body.entry[0] && body.entry[0].changes && body.entry[0].changes[0] && body.entry[0].changes[0].value;\nconst ogsid = ratingValue && ratingValue.open_graph_story_id;\nif (ogsid) {\n  const reviewContent = (typeof ratingValue.review_text === 'string' && ratingValue.review_text) ||\n                        (typeof ratingValue.message === 'string' && ratingValue.message) || '';\n  dedupKey = ogsid + ':' + simpleHash(reviewContent);\n}\n\ndedupKey = dedupKey\n  || body.eventId\n  || body.update_id\n  || (body.entry && body.entry[0] && body.entry[0].changes && body.entry[0].changes[0] && body.entry[0].changes[0].value && Array.isArray(body.entry[0].changes[0].value.messages) && body.entry[0].changes[0].value.messages[0] && body.entry[0].changes[0].value.messages[0].id)\n  || (body.message && body.message.msg_id)\n  || body.google_forms_id\n  || null;\n\nif (!dedupKey) {\n  dedupKey = 'hash:' + simpleHash(JSON.stringify(body));\n}\n\nreturn {\n  json: {\n    ...$json,\n    _dedupKey: dedupKey,\n  }\n};"
+      },
+      "id": "check_duplicate_webhook",
+      "name": "Check Duplicate Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1248,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dup1",
+              "leftValue": "={{ $json.dedupExisting !== null && $json.dedupExisting !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is_duplicate",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -560,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'ok', note: 'duplicate delivery ignored' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond_200_duplicate",
+      "name": "Respond 200 (Duplicate)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -336,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $json.body || {};\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst chatSources = ['telegram', 'zalo', 'whatsapp', 'facebook_messenger', 'facebook_comment', 'facebook_rating'];\n\nconst hasValidEmail = typeof body.email === 'string' && emailRegex.test(body.email);\nconst hasValidPhoneForChat = chatSources.includes(body.source) && typeof body.phone === 'string' && body.phone.trim() !== '';\n\nreturn {\n  json: {\n    ...$json,\n    hasValidContact: hasValidEmail || hasValidPhoneForChat,\n  }\n};"
+      },
+      "id": "compute_contact_validity",
+      "name": "Compute Contact Validity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "hx1",
+              "leftValue": "={{$('Format Lead').item.json.Classification}}",
+              "rightValue": "hot",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is_hot_extra_channels",
+      "name": "Is Hot (Extra Channels)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5888,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.DISCORD_WEBHOOK_URL}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: `🔥 **New HOT lead**\\n**Name:** ${$('Format Lead').item.json.Name}\\n**Email:** ${$('Format Lead').item.json.Email || 'N/A'}\\n**Phone:** ${$('Format Lead').item.json.Phone || 'N/A'}\\n**Message:** ${$('Format Lead').item.json.Message}\\n**Draft reply:** ${$('Format Lead').item.json['Draft Reply']}` }) }}",
+        "options": {}
+      },
+      "id": "notify_discord_hot_lead",
+      "name": "Notify Discord (Hot Lead)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        6352,
+        -176
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TELEGRAM_GROUP_CHAT_ID, text: `🔥 New HOT lead\\nName: ${$('Format Lead').item.json.Name}\\nEmail: ${$('Format Lead').item.json.Email || 'N/A'}\\nPhone: ${$('Format Lead').item.json.Phone || 'N/A'}\\nMessage: ${$('Format Lead').item.json.Message}\\nDraft reply: ${$('Format Lead').item.json['Draft Reply']}` }) }}",
+        "options": {}
+      },
+      "id": "notify_telegram_group_hot_lead",
+      "name": "Notify Telegram Group (Hot Lead)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        6352,
+        16
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://ntfy.sh/' + $env.NTFY_TOPIC }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Title",
+              "value": "🔥 New HOT Lead"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/plain",
+        "body": "={{ 'Name: ' + $('Format Lead').item.json.Name + '\\nEmail: ' + $('Format Lead').item.json.Email + '\\nPhone: ' + ($('Format Lead').item.json.Phone || 'N/A') + '\\nMessage: ' + $('Format Lead').item.json.Message }}",
+        "options": {}
+      },
+      "id": "notify_ntfy_hot_lead",
+      "name": "Notify ntfy (Hot Lead)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        6352,
+        208
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.GMAIL_ADDRESS}}",
+        "toEmail": "={{$env.NOTIFY_EMAIL_LIST}}",
+        "subject": "=🔥 New HOT Lead: {{$('Format Lead').item.json.Name}}",
+        "emailFormat": "text",
+        "text": "=Name: {{$('Format Lead').item.json.Name}}\nEmail: {{$('Format Lead').item.json.Email}}\nPhone: {{$('Format Lead').item.json.Phone || 'N/A'}}\nMessage: {{$('Format Lead').item.json.Message}}\nDraft reply: {{$('Format Lead').item.json['Draft Reply']}}",
+        "options": {}
+      },
+      "id": "send_email_hot_lead",
+      "name": "Send Email (Hot Lead)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        6352,
+        400
+      ],
+      "webhookId": "0d898723-615e-4da3-9f83-b389c0279348",
+      "credentials": {
+        "smtp": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Gmail SMTP"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.NOTION_TOKEN }}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ parent: { database_id: $env.NOTION_DATABASE_ID }, properties: { Name: { title: [{ text: { content: $('Format Lead').item.json.Name } }] }, Email: { rich_text: [{ text: { content: $('Format Lead').item.json.Email || '' } }] }, Phone: { rich_text: [{ text: { content: $('Format Lead').item.json.Phone || '' } }] }, Message: { rich_text: [{ text: { content: $('Format Lead').item.json.Message } }] }, Classification: { select: { name: $('Format Lead').item.json.Classification } }, Source: { rich_text: [{ text: { content: $('Format Lead').item.json.Source || '' } }] } } }) }}",
+        "options": {}
+      },
+      "id": "notify_notion_hot_lead",
+      "name": "Notify Notion (Hot Lead)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        6352,
+        592
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "# 🔴 01 Intake & Validation\n ##### Ingest → Archive → Deduplicate → Normalize → Validate",
+        "height": 112,
+        "width": 5028,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2528,
+        -192
+      ],
+      "id": "168816fa-d605-45bd-a9c2-bb222b890cc8",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "# 🔵 02 AI Qualification\n\n#### Classify → Parse → Structure",
+        "height": 112,
+        "width": 2850,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2544,
+        -48
+      ],
+      "id": "3482d388-087b-44de-be72-7ea72eb64c1d",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "# 🟢 03 Routing & Persistence\n##### Route → Persist → Respond",
+        "height": 112,
+        "width": 568,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5408,
+        -336
+      ],
+      "id": "cdde414a-0237-4c74-95d3-2d392c622dfc",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "# 🟣 04 Notifications\n##### Fan-out alerts to downstream channels",
+        "height": 112,
+        "width": 440,
+        "color": "#482B50"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        6000,
+        -608
+      ],
+      "id": "6d73d1a1-558f-4d1f-8321-f7da9c48a1c8",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "path": "lead-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_fb_verify_get",
+      "name": "Webhook - FB Verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2400,
+        2112
+      ],
+      "webhookId": "5a68c8bf-6cad-448c-abcd-d332f7ba96e7"
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = $json.query || {};\nconst expected = $env.FB_WEBHOOK_VERIFY_TOKEN;\nconst mode = query['hub.mode'];\nconst token = query['hub.verify_token'];\nconst challenge = query['hub.challenge'];\n\nconst verified = mode === 'subscribe' && !!expected && token === expected && !!challenge;\n\nreturn {\n  json: {\n    ...$json,\n    verified,\n    challenge,\n  }\n};"
+      },
+      "id": "check_fb_verify_token",
+      "name": "Check FB Verify Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2176,
+        2112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fbverify1",
+              "leftValue": "={{$json.verified}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is_valid_fb_verify",
+      "name": "Is Valid FB Verify?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1936,
+        2112
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond_fb_challenge",
+      "name": "Respond FB Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -1712,
+        2112
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Forbidden",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "respond_403_fb_verify_failed",
+      "name": "Respond 403 (FB Verify Failed)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -1712,
+        2336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fbignore1",
+              "leftValue": "={{$json.body.source}}",
+              "rightValue": "facebook_comment_ignore",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "fbignore2_rating",
+              "leftValue": "={{$json.body.source}}",
+              "rightValue": "facebook_rating_ignore",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "is_fb_comment_non_add_event",
+      "name": "Is FB Comment Non-Add Event?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        832,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'ok', note: 'facebook page event ignored (not a new comment)' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond_200_fb_event_ignored",
+      "name": "Respond 200 (FB Event Ignored)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1056,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fb_needs_fetch",
+              "leftValue": "={{$json.body.source}}",
+              "rightValue": "facebook_comment",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "is_fb_comment_needs_fetch",
+      "name": "Is FB Comment (Needs Fetch)?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1056,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v20.0/{{$json._fbCommentId}}?fields=message&access_token={{$env.FB_PAGE_ACCESS_TOKEN}}",
+        "options": {}
+      },
+      "id": "fetch_fb_comment_text",
+      "name": "Fetch FB Comment Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1280,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Normalize Lead Shape').item.json;\nconst commentText = (typeof $json.message === 'string') ? $json.message : '';\nconst phoneMatch = commentText.match(/(0|\\+84)\\d{9,10}/);\n\nreturn {\n  json: {\n    ...original,\n    body: {\n      ...original.body,\n      message: commentText,\n      phone: phoneMatch ? phoneMatch[0] : undefined\n    }\n  }\n};"
+      },
+      "id": "merge_fb_comment_message",
+      "name": "Merge FB Comment Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'accepted' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond_200_accepted_early",
+      "name": "Respond 200 (Accepted)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2432,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ \"https://graph.facebook.com/v20.0/\" + $env.WHATSAPP_PHONE_NUMBER_ID + \"/messages\" }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.WHATSAPP_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: \"whatsapp\", to: $env.WHATSAPP_NOTIFY_PHONE_NUMBER, type: \"text\", text: { body: `🔥 New HOT lead\nName: ${$('Format Lead').item.json.Name}\nEmail: ${$('Format Lead').item.json.Email || 'N/A'}\nPhone: ${$('Format Lead').item.json.Phone || 'N/A'}\nMessage: ${$('Format Lead').item.json.Message}\nDraft reply: ${$('Format Lead').item.json['Draft Reply']}` } }) }}",
+        "options": {}
+      },
+      "id": "notify_whatsapp_hot_lead",
+      "name": "Notify WhatsApp (Hot Lead)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        6352,
+        784
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    ...$json,\n    scoringConfig: {\n      weights: {\n        fit: { sourceValid: 10, contactComplete: 20 },\n        intent: {\n          intentHigh: 25, intentMedium: 15,\n          problemClarityHigh: 10, problemClarityMedium: 5,\n          urgencyHigh: 5, urgencyMedium: 3\n        }\n      },\n      thresholds: { hot: 49, warm: 31 },\n      score_version: 'v1.1'\n    }\n  }\n};"
+      },
+      "id": "scoring_config",
+      "name": "Scoring Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = $('Scoring Config').item.json.scoringConfig.weights.fit;\nconst body = $json.body || {};\nconst chatSources = ['telegram', 'zalo', 'whatsapp', 'facebook_messenger', 'facebook_comment', 'facebook_rating'];\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\nlet score = 0;\nconst positive = [];\nconst negative = [];\n\nif (typeof body.source === 'string' && body.source.trim() !== '') {\n  score += cfg.sourceValid;\n  positive.push('Source is clearly identified');\n} else {\n  negative.push('Lead source could not be determined');\n}\n\nconst hasEmail = typeof body.email === 'string' && emailRegex.test(body.email);\nconst hasPhone = typeof body.phone === 'string' && body.phone.trim() !== '';\nconst isChatSource = chatSources.includes(body.source);\n\n// Contact completeness: SAME max points (cfg.contactComplete) regardless of source\n// type, to avoid re-introducing the chat-vs-form bias already fixed twice in BR-01\n// (see PRD.md AC-11 cập nhật 2026-09-26 / TECHNICAL_SPEC.md MVP-05 đính chính BR-01).\n// Chat sources never collect a real email by design, so judge them on phone/fallback\n// identifier alone; form sources need BOTH email and phone for full credit.\nif (isChatSource) {\n  if (hasPhone) {\n    score += cfg.contactComplete;\n    positive.push('Has phone number or contact identifier (sufficient for chat-based source)');\n  } else {\n    negative.push('No phone number or contact identifier');\n  }\n} else {\n  if (hasEmail && hasPhone) {\n    score += cfg.contactComplete;\n    positive.push('Has both email and phone number');\n  } else if (hasEmail || hasPhone) {\n    score += cfg.contactComplete / 2;\n    positive.push(hasEmail ? 'Has valid email (missing phone number)' : 'Has phone number (missing email)');\n  } else {\n    negative.push('Missing both email and phone number');\n  }\n}\n\nreturn {\n  json: {\n    ...$json,\n    fitScore: score,\n    fitScoreReason: { positive, negative }\n  }\n};"
+      },
+      "id": "compute_fit_score",
+      "name": "Compute Fit Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = $('Scoring Config').item.json.scoringConfig.weights.intent;\nconst j = $json;\n\nlet score = 0;\nconst positive = [];\nconst negative = [];\n\nif (j.intent === 'high') {\n  score += cfg.intentHigh;\n  positive.push('AI assessed buying intent as high');\n} else if (j.intent === 'medium') {\n  score += cfg.intentMedium;\n  positive.push('AI assessed buying intent as medium');\n} else {\n  negative.push('AI assessed buying intent as low/unclear');\n}\n\nif (j.problem_clarity === 'high') {\n  score += cfg.problemClarityHigh;\n  positive.push('Problem/need is clearly described');\n} else if (j.problem_clarity === 'medium') {\n  score += cfg.problemClarityMedium;\n} else {\n  negative.push('Problem/need is not clearly described');\n}\n\nif (j.urgency === 'high') {\n  score += cfg.urgencyHigh;\n  positive.push('Shows high urgency signal (needs action soon)');\n} else if (j.urgency === 'medium') {\n  score += cfg.urgencyMedium;\n}\n\nreturn {\n  json: {\n    ...$json,\n    intentScore: score,\n    intentScoreReason: { positive, negative }\n  }\n};"
+      },
+      "id": "compute_intent_score",
+      "name": "Compute Intent Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4048,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = $('Scoring Config').item.json.scoringConfig;\nconst fit = $('Compute Fit Score').item.json;\nconst j = $json;\n\nconst fitScore = fit.fitScore;\nconst intentScore = j.intentScore;\nconst leadScore = fitScore + intentScore;\n\nlet leadGrade = 'cold';\nif (leadScore >= cfg.thresholds.hot) leadGrade = 'hot';\nelse if (leadScore >= cfg.thresholds.warm) leadGrade = 'warm';\n\nconst positive = [...(fit.fitScoreReason ? fit.fitScoreReason.positive : []), ...(j.intentScoreReason ? j.intentScoreReason.positive : [])];\nconst negative = [...(fit.fitScoreReason ? fit.fitScoreReason.negative : []), ...(j.intentScoreReason ? j.intentScoreReason.negative : [])];\n\nreturn {\n  json: {\n    ...j,\n    fitScore,\n    intentScore,\n    leadScore,\n    leadGrade,\n    scoreReason: { positive, negative },\n    scoreVersion: cfg.score_version,\n    legacyClassification: j.classification\n  }\n};"
+      },
+      "id": "combine_lead_score",
+      "name": "Combine Lead Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4272,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Resolve Customer Identity (AC-28) - identity resolution + auto-merge.\n// Matching key: email OR phone (normalized), never chat fallback identifiers\n// (those contain ':', e.g. \"telegram:12345\" - only meaningful within their own channel).\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst fl = $('Format Lead').item.json;\nconst rawEmail = fl.Email;\nconst rawPhone = fl.Phone;\n\nconst normEmail = (typeof rawEmail === 'string' && emailRegex.test(rawEmail)) ? rawEmail.trim().toLowerCase() : null;\nconst normPhone = (typeof rawPhone === 'string' && !rawPhone.includes(':') && rawPhone.trim() !== '')\n  ? rawPhone.replace(/[^0-9]/g, '')\n  : null;\n\nconst baseUrl = 'https://api.airtable.com/v0/' + $env.AIRTABLE_BASE_ID;\nconst authHeader = { Authorization: 'Bearer ' + $env.AIRTABLE_API_KEY };\nconst customersTable = 'Customers';\nconst nowIso = new Date().toISOString();\n\nlet matches = [];\nif (normEmail || normPhone) {\n  const filters = [];\n  if (normEmail) filters.push(`{Primary Email}='${normEmail}'`);\n  if (normPhone) filters.push(`{Primary Phone}='${normPhone}'`);\n  const formula = filters.length > 1 ? `OR(${filters.join(',')})` : filters[0];\n  const res = await this.helpers.httpRequest({\n    method: 'GET',\n    url: baseUrl + '/' + encodeURIComponent(customersTable),\n    qs: { filterByFormula: formula },\n    headers: authHeader,\n    json: true\n  });\n  matches = res.records || [];\n}\n\nlet customerId = null;\nlet mergeInfo = null;\n\nif (matches.length === 0) {\n  const createRes = await this.helpers.httpRequest({\n    method: 'POST',\n    url: baseUrl + '/' + encodeURIComponent(customersTable),\n    headers: authHeader,\n    json: true,\n    body: {\n      fields: {\n        Name: fl.Name,\n        'Primary Email': normEmail || undefined,\n        'Primary Phone': normPhone || undefined,\n        'First Seen At': nowIso,\n        'Last Seen At': nowIso,\n        'Total Leads': 1,\n        Status: 'active'\n      }\n    }\n  });\n  customerId = createRes.id;\n} else if (matches.length === 1) {\n  const c = matches[0];\n  customerId = c.id;\n  await this.helpers.httpRequest({\n    method: 'PATCH',\n    url: baseUrl + '/' + encodeURIComponent(customersTable) + '/' + c.id,\n    headers: authHeader,\n    json: true,\n    body: {\n      fields: {\n        'Last Seen At': nowIso,\n        'Total Leads': (c.fields['Total Leads'] || 0) + 1\n      }\n    }\n  });\n} else {\n  // Merge conflict: 2+ distinct customers matched by different keys (email vs phone).\n  // Founder-confirmed policy (2026-09-27): auto-merge, survivor = earliest First Seen At.\n  const sorted = [...matches].sort((a, b) => new Date(a.fields['First Seen At']) - new Date(b.fields['First Seen At']));\n  const survivor = sorted[0];\n  const losers = sorted.slice(1);\n  customerId = survivor.id;\n\n  for (const loser of losers) {\n    const loserLeadIds = loser.fields['Leads'] || [];\n    for (const leadId of loserLeadIds) {\n      await this.helpers.httpRequest({\n        method: 'PATCH',\n        url: baseUrl + '/' + encodeURIComponent($env.AIRTABLE_TABLE_NAME) + '/' + leadId,\n        headers: authHeader,\n        json: true,\n        body: { fields: { Customer: [survivor.id] } }\n      });\n    }\n    await this.helpers.httpRequest({\n      method: 'PATCH',\n      url: baseUrl + '/' + encodeURIComponent(customersTable) + '/' + loser.id,\n      headers: authHeader,\n      json: true,\n      body: { fields: { Status: 'merged', 'Merged Into': [survivor.id] } }\n    });\n  }\n\n  const loserLeadCount = losers.reduce((sum, l) => sum + (l.fields['Total Leads'] || 0), 0);\n  await this.helpers.httpRequest({\n    method: 'PATCH',\n    url: baseUrl + '/' + encodeURIComponent(customersTable) + '/' + survivor.id,\n    headers: authHeader,\n    json: true,\n    body: {\n      fields: {\n        'Last Seen At': nowIso,\n        'Total Leads': (survivor.fields['Total Leads'] || 0) + 1 + loserLeadCount\n      }\n    }\n  });\n\n  mergeInfo = { survivorId: survivor.id, loserIds: losers.map(l => l.id) };\n}\n\nreturn {\n  json: {\n    ...$json,\n    customerId,\n    customerMergeInfo: mergeInfo\n  }\n};"
+      },
+      "id": "resolve_customer_identity",
+      "name": "Resolve Customer Identity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4960,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// AC-29: bóc SĐT khách tự gõ trong nội dung tin nhắn, áp dụng cho CẢ 11 nguồn\n// (tổng quát hoá regex đã dùng riêng cho Facebook Comment ở \"Merge FB Comment Message\").\n// KHÔNG đụng body.phone - hoàn toàn cộng thêm, tránh regression Validate/BR-01/dedup.\nconst body = $json.body || {};\nconst text = typeof body.message === 'string' ? body.message : '';\nconst match = text.match(/(0|\\+84)\\d{9,10}/);\n\nreturn {\n  json: {\n    ...$json,\n    messagePhone: match ? match[0] : null\n  }\n};"
+      },
+      "id": "extract_phone_from_message",
+      "name": "Extract Phone From Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// AC-29: Warm Lead Outreach Readiness - multi-channel, không loại trừ nhau.\nconst fl = $('Format Lead').item.json;\nconst messagePhone = $('Extract Phone From Message').item.json.messagePhone;\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\nconst source = fl.Source;\nconst phone = fl.Phone;\nconst email = fl.Email;\n\nconst channels = [];\nlet emailIdentifier = null;\nlet chatIdentifier = null;\n\nif (typeof email === 'string' && emailRegex.test(email)) {\n  channels.push('email');\n  emailIdentifier = email;\n}\n\nconst isPrefixed = typeof phone === 'string' && phone.includes(':');\nconst realPlatformPhone = (typeof phone === 'string' && !isPrefixed && phone.trim() !== '') ? phone : null;\n\nif (messagePhone || realPlatformPhone) {\n  channels.push('phone');\n}\n\nif (source === 'telegram') {\n  channels.push('telegram');\n  chatIdentifier = typeof phone === 'string' ? phone.replace('telegram:', '') : null;\n} else if (source === 'whatsapp') {\n  channels.push('whatsapp');\n  chatIdentifier = phone;\n} else if (source === 'zalo') {\n  channels.push('zalo');\n  chatIdentifier = typeof phone === 'string' ? phone.replace('zalo:', '') : null;\n} else if (source === 'facebook_messenger') {\n  channels.push('facebook_messenger');\n  chatIdentifier = typeof phone === 'string' ? phone.replace('messenger:', '') : null;\n}\n\nif (channels.length === 0) {\n  channels.push('none');\n}\n\n// Ưu tiên: SĐT khách tự khai trong tin nhắn > email > định danh kênh chat riêng > SĐT nền tảng thật\nlet outreachIdentifier = null;\nif (messagePhone) outreachIdentifier = messagePhone;\nelse if (emailIdentifier) outreachIdentifier = emailIdentifier;\nelse if (chatIdentifier) outreachIdentifier = chatIdentifier;\nelse if (realPlatformPhone) outreachIdentifier = realPlatformPhone;\n\nreturn {\n  json: {\n    ...$json,\n    outreachChannels: channels,\n    outreachIdentifier,\n    messagePhone: messagePhone || null\n  }\n};"
+      },
+      "id": "compute_outreach_channel",
+      "name": "Compute Outreach Channel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4736,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "dedupExisting",
+        "key": "={{ 'lead:dedup:' + $json._dedupKey }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "id": "redis_get_dedup_key",
+      "name": "Redis - Get Dedup Key",
+      "position": [
+        -1024,
+        304
+      ],
+      "credentials": {
+        "redis": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'lead:dedup:' + $json._dedupKey }}",
+        "value": "1",
+        "keyType": "string",
+        "expire": true,
+        "ttl": "={{ Number($env.REDIS_DEDUP_TTL_SECONDS) || 300 }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "id": "redis_set_dedup_key",
+      "name": "Redis - Set Dedup Key",
+      "position": [
+        -336,
+        400
+      ],
+      "credentials": {
+        "redis": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Node Redis \"get\" builtin của n8n KHÔNG giữ lại dữ liệu gốc (chỉ trả về\n// đúng field propertyName) - khôi phục lại body/_dedupKey từ node trước đó,\n// gắn thêm kết quả Redis vào cùng item.\nconst original = $('Check Duplicate Webhook').item.json;\nreturn {\n  json: {\n    ...original,\n    dedupExisting: $json.dedupExisting\n  }\n};"
+      },
+      "id": "merge_redis_dedup_result",
+      "name": "Merge Redis Dedup Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// AC-19: Redis AI Classification Cache - hash nội dung (name+message+source)\n// dùng chung pattern hash thủ công đã có sẵn (Check Duplicate Webhook), không\n// cần crypto module (tránh phụ thuộc sandbox n8n có cho phép builtin hay không).\nfunction simpleHash(str) {\n  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;\n  for (let i = 0; i < str.length; i++) {\n    const ch = str.charCodeAt(i);\n    h1 = Math.imul(h1 ^ ch, 2654435761);\n    h2 = Math.imul(h2 ^ ch, 1597334677);\n  }\n  h1 = (h1 ^ (h1 >>> 16)) >>> 0;\n  h2 = (h2 ^ (h2 >>> 16)) >>> 0;\n  return h1.toString(16) + h2.toString(16);\n}\n\nconst body = $json.body || {};\nconst keyInput = (body.name || '') + '|' + (body.message || '') + '|' + (body.source || '');\n\nreturn {\n  json: {\n    ...$json,\n    contentHash: simpleHash(keyInput)\n  }\n};"
+      },
+      "id": "compute_content_hash",
+      "name": "Compute Content Hash",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2432,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "cachedResult",
+        "key": "={{ 'lead:ai_cache:' + $json.contentHash }}",
+        "keyType": "string",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "id": "redis_get_ai_cache",
+      "name": "Redis - Get AI Cache",
+      "position": [
+        2672,
+        304
+      ],
+      "credentials": {
+        "redis": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Redis \"get\" builtin của n8n không giữ dữ liệu gốc - khôi phục lại\n// (đúng bug đã fix ở AC-18, cùng nguyên nhân).\nconst original = $('Compute Content Hash').item.json;\nreturn {\n  json: {\n    ...original,\n    cachedResult: $json.cachedResult\n  }\n};"
+      },
+      "id": "merge_ai_cache_result",
+      "name": "Merge AI Cache Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2896,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cache_hit_1",
+              "leftValue": "={{ $json.cachedResult !== null && $json.cachedResult !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ai_cache_hit_if",
+      "name": "AI Cache Hit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3120,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "let result;\ntry {\n  result = JSON.parse($json.cachedResult);\n} catch (e) {\n  result = { classification: 'cold', confidence: 0, reasoning: 'cache_parse_error: ' + e.message, draft_reply: '', error: true, intent: 'low', problem_clarity: 'low', urgency: 'low' };\n}\nreturn { json: result };"
+      },
+      "id": "use_cached_ai_result",
+      "name": "Use Cached AI Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'lead:ai_cache:' + $('Merge AI Cache Result').item.json.contentHash }}",
+        "value": "={{ JSON.stringify($json) }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": "={{ Number($env.REDIS_AI_CACHE_TTL_SECONDS) || 86400 }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "id": "redis_set_ai_cache",
+      "name": "Redis - Set AI Cache",
+      "position": [
+        3824,
+        304
+      ],
+      "credentials": {
+        "redis": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Redis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "pg_enabled_1",
+              "leftValue": "={{ $env.ENABLE_POSTGRES_WRITE }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "postgres_write_enabled_if",
+      "name": "Postgres Write Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5424,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO leads (lead_id, name, email, phone, company, source, message, fit_score, intent_score, lead_score, lead_grade, score_reason, score_version, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now()) ON CONFLICT (lead_id) DO UPDATE SET name=EXCLUDED.name, email=EXCLUDED.email, phone=EXCLUDED.phone, company=EXCLUDED.company, source=EXCLUDED.source, message=EXCLUDED.message, fit_score=EXCLUDED.fit_score, intent_score=EXCLUDED.intent_score, lead_score=EXCLUDED.lead_score, lead_grade=EXCLUDED.lead_grade, score_reason=EXCLUDED.score_reason, score_version=EXCLUDED.score_version, updated_at=now();",
+        "options": {
+          "queryReplacement": "={{ [ $('Check Duplicate Webhook').item.json._dedupKey, $('Format Lead').item.json.Name, $('Format Lead').item.json.Email, $('Format Lead').item.json.Phone, null, $('Format Lead').item.json.Source, $('Format Lead').item.json.Message, $('Compute Fit Score').item.json.fitScore, $('Compute Intent Score').item.json.intentScore, $('Combine Lead Score').item.json.leadScore, $('Combine Lead Score').item.json.leadGrade, JSON.stringify($('Combine Lead Score').item.json.scoreReason), $('Combine Lead Score').item.json.scoreVersion ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "id": "write_lead_to_postgres",
+      "name": "Write Lead to Postgres",
+      "position": [
+        5664,
+        112
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Postgres"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'all-minilm', input: $('Format Lead').item.json.Message || '' }) }}",
+        "options": {}
+      },
+      "id": "generate_embedding",
+      "name": "Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        5888,
+        400
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE leads SET message_embedding = $1::vector WHERE lead_id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify(($json.embeddings || [[]])[0]), $('Check Duplicate Webhook').item.json._dedupKey ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "id": "update_embedding_in_postgres",
+      "name": "Update Embedding in Postgres",
+      "position": [
+        6112,
+        976
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Postgres"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// AC-22: chuẩn bị payload thô để archive vào MongoDB - chạy NGAY ĐẦU\n// pipeline, trước cả dedup/Normalize, để không bỏ sót request nào (kể cả\n// request sẽ bị 400 sau Validate).\nconst headers = $json.headers || {};\nconst body = $json.body || {};\n\nlet sourceGuess = 'unknown';\nif (headers['x-shopify-webhook-id']) sourceGuess = 'shopify';\nelse if (body.event_type === 'form_response') sourceGuess = 'typeform';\nelse if (body.update_id !== undefined) sourceGuess = 'telegram';\nelse if (typeof body.event_name === 'string' && body.event_name.startsWith('user_send_')) sourceGuess = 'zalo';\nelse if (body.object === 'whatsapp_business_account') sourceGuess = 'whatsapp';\nelse if (body.object === 'page') sourceGuess = 'facebook_page_event';\nelse if (body.eventType === 'FORM_RESPONSE') sourceGuess = 'tally';\nelse if (body.event === 'invitee.created') sourceGuess = 'calendly';\nelse if (Array.isArray(body.line_items)) sourceGuess = 'shopify';\nelse if (body.google_forms_id) sourceGuess = 'google_forms';\nelse if (Array.isArray(body.field_data)) sourceGuess = 'facebook_lead_ads';\nelse if (typeof body.source === 'string' && body.source.trim() !== '') sourceGuess = body.source;\n\nreturn {\n  json: {\n    ...$json,\n    rawHeaders: headers,\n    rawBody: body,\n    sourceGuess,\n    archivedAt: new Date().toISOString(),\n    webhookPath: 'lead-intake'\n  }\n};"
+      },
+      "id": "prepare_raw_payload",
+      "name": "Prepare Raw Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2176,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "raw_payloads",
+        "fields": "rawHeaders,rawBody,sourceGuess,archivedAt,webhookPath",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.4,
+      "id": "archive_raw_payload",
+      "name": "Archive Raw Payload",
+      "position": [
+        -1936,
+        304
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "MongoDB"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// MongoDB insert node (giống Redis/Postgres trước) không giữ dữ liệu gốc -\n// khôi phục lại từ node trước archive.\nreturn { json: $('Prepare Raw Payload').item.json };"
+      },
+      "id": "restore_after_archive",
+      "name": "Restore After Archive",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1712,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "lead.ingested",
+        "messageData": "={{ JSON.stringify({ source: $json.sourceGuess, receivedAt: $json.archivedAt, webhookPath: $json.webhookPath }) }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "id": "redis_append_event_log",
+      "name": "Redis - Append Event Log",
+      "position": [
+        -1488,
+        304
+      ],
+      "credentials": {
+        "redis": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Redis"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "lead:scores",
+        "value": "={{ JSON.stringify({ [$('Check Duplicate Webhook').item.json._dedupKey]: $json.leadScore }) }}",
+        "keyType": "hash"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "id": "redis_update_lead_score",
+      "name": "Redis - Update Lead Score",
+      "position": [
+        4512,
+        400
+      ],
+      "credentials": {
+        "redis": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Redis"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "gsheets_enabled_1",
+              "leftValue": "={{ $env.ENABLE_GOOGLE_SHEETS_WRITE }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "google_sheets_write_enabled_if",
+      "name": "Google Sheets Write Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5424,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1T1i4tP3bYoPyvAs4i3XU-twtbEbp7qGsGUBqsj_8cNM"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "id",
+          "value": "0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $('Format Lead').item.json.Name }}",
+            "Email": "={{ $('Format Lead').item.json.Email }}",
+            "Phone": "={{ $('Format Lead').item.json.Phone }}",
+            "Source": "={{ $('Format Lead').item.json.Source }}",
+            "Fit Score": "={{ $('Compute Fit Score').item.json.fitScore }}",
+            "Intent Score": "={{ $('Compute Intent Score').item.json.intentScore }}",
+            "Lead Score": "={{ $('Combine Lead Score').item.json.leadScore }}",
+            "Lead Grade": "={{ $('Combine Lead Score').item.json.leadGrade }}",
+            "Score Reason": "={{ JSON.stringify($('Combine Lead Score').item.json.scoreReason) }}",
+            "Score Version": "={{ $('Combine Lead Score').item.json.scoreVersion }}",
+            "Received At": "={{ $('Compute Contact Validity').item.json.receivedAt }}"
+          },
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "displayName": "Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Fit Score",
+              "displayName": "Fit Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Intent Score",
+              "displayName": "Intent Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Lead Score",
+              "displayName": "Lead Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Lead Grade",
+              "displayName": "Lead Grade",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Score Reason",
+              "displayName": "Score Reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Score Version",
+              "displayName": "Score Version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Received At",
+              "displayName": "Received At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "id": "write_lead_to_google_sheets",
+      "name": "Write Lead to Google Sheets",
+      "position": [
+        5664,
+        304
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Google Service Account account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "baserow_enabled_1",
+              "leftValue": "={{ $env.ENABLE_BASEROW_WRITE }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "baserow_write_enabled_if",
+      "name": "Baserow Write Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5424,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "databaseToken",
+        "operation": "create",
+        "tableId": "284",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "2649",
+              "fieldValue": "={{ $('Format Lead').item.json.Name }}"
+            },
+            {
+              "fieldId": "2957",
+              "fieldValue": "={{ $('Format Lead').item.json.Email }}"
+            },
+            {
+              "fieldId": "2958",
+              "fieldValue": "={{ $('Format Lead').item.json.Phone }}"
+            },
+            {
+              "fieldId": "2959",
+              "fieldValue": "={{ $('Format Lead').item.json.Source }}"
+            },
+            {
+              "fieldId": "2960",
+              "fieldValue": "={{ $('Compute Fit Score').item.json.fitScore }}"
+            },
+            {
+              "fieldId": "2961",
+              "fieldValue": "={{ $('Compute Intent Score').item.json.intentScore }}"
+            },
+            {
+              "fieldId": "2962",
+              "fieldValue": "={{ $('Combine Lead Score').item.json.leadScore }}"
+            },
+            {
+              "fieldId": "2963",
+              "fieldValue": "={{ $('Combine Lead Score').item.json.leadGrade }}"
+            },
+            {
+              "fieldId": "2964",
+              "fieldValue": "={{ JSON.stringify($('Combine Lead Score').item.json.scoreReason) }}"
+            },
+            {
+              "fieldId": "2965",
+              "fieldValue": "={{ $('Combine Lead Score').item.json.scoreVersion }}"
+            },
+            {
+              "fieldId": "2966",
+              "fieldValue": "={{ $('Compute Contact Validity').item.json.receivedAt }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.baserow",
+      "typeVersion": 1.1,
+      "id": "write_lead_to_baserow",
+      "name": "Write Lead to Baserow",
+      "position": [
+        5664,
+        496
+      ],
+      "credentials": {
+        "baserowTokenApi": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Baserow"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "supabase_enabled_1",
+              "leftValue": "={{ $env.ENABLE_SUPABASE_WRITE }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "supabase_write_enabled_if",
+      "name": "Supabase Write Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5424,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "leads",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "lead_id",
+              "fieldValue": "={{ $('Check Duplicate Webhook').item.json._dedupKey }}"
+            },
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $('Format Lead').item.json.Name }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $('Format Lead').item.json.Email }}"
+            },
+            {
+              "fieldId": "phone",
+              "fieldValue": "={{ $('Format Lead').item.json.Phone }}"
+            },
+            {
+              "fieldId": "source",
+              "fieldValue": "={{ $('Format Lead').item.json.Source }}"
+            },
+            {
+              "fieldId": "message",
+              "fieldValue": "={{ $('Format Lead').item.json.Message }}"
+            },
+            {
+              "fieldId": "fit_score",
+              "fieldValue": "={{ $('Compute Fit Score').item.json.fitScore }}"
+            },
+            {
+              "fieldId": "intent_score",
+              "fieldValue": "={{ $('Compute Intent Score').item.json.intentScore }}"
+            },
+            {
+              "fieldId": "lead_score",
+              "fieldValue": "={{ $('Combine Lead Score').item.json.leadScore }}"
+            },
+            {
+              "fieldId": "lead_grade",
+              "fieldValue": "={{ $('Combine Lead Score').item.json.leadGrade }}"
+            },
+            {
+              "fieldId": "score_reason",
+              "fieldValue": "={{ JSON.stringify($('Combine Lead Score').item.json.scoreReason) }}"
+            },
+            {
+              "fieldId": "score_version",
+              "fieldValue": "={{ $('Combine Lead Score').item.json.scoreVersion }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "id": "write_lead_to_supabase",
+      "name": "Write Lead to Supabase",
+      "position": [
+        5664,
+        688
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_AFTER_IMPORT",
+          "name": "Supabase account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "# ⚪ 00 Webhook Verification\n##### Facebook challenge handshake (GET, not part of the lead flow)",
+        "height": 112,
+        "width": 1240
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2528,
+        1856
+      ],
+      "id": "sticky_note_verification_00",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "slack_notify_enabled_if_1",
+              "leftValue": "={{ $env.ENABLE_SLACK_NOTIFY }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "slack_notify_enabled_if",
+      "name": "Slack Notify Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6112,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "discord_notify_enabled_if_1",
+              "leftValue": "={{ $env.ENABLE_DISCORD_NOTIFY }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "discord_notify_enabled_if",
+      "name": "Discord Notify Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6112,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "telegram_notify_enabled_if_1",
+              "leftValue": "={{ $env.ENABLE_TELEGRAM_NOTIFY }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "telegram_notify_enabled_if",
+      "name": "Telegram Notify Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6112,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ntfy_notify_enabled_if_1",
+              "leftValue": "={{ $env.ENABLE_NTFY_NOTIFY }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ntfy_notify_enabled_if",
+      "name": "ntfy Notify Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6112,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "email_notify_enabled_if_1",
+              "leftValue": "={{ $env.ENABLE_EMAIL_NOTIFY }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "email_notify_enabled_if",
+      "name": "Email Notify Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6112,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "notion_notify_enabled_if_1",
+              "leftValue": "={{ $env.ENABLE_NOTION_NOTIFY }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "notion_notify_enabled_if",
+      "name": "Notion Notify Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6112,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "whatsapp_notify_enabled_if_1",
+              "leftValue": "={{ $env.ENABLE_WHATSAPP_NOTIFY }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "whatsapp_notify_enabled_if",
+      "name": "WhatsApp Notify Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6112,
+        784
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Lead Intake": {
+      "main": [
+        [
+          {
+            "node": "Prepare Raw Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stamp Received At": {
+      "main": [
+        [
+          {
+            "node": "Scoring Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (Accepted)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Compute Content Hash",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Haiku - Classify Lead": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude JSON": {
+      "main": [
+        [
+          {
+            "node": "Redis - Set AI Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Lead": {
+      "main": [
+        [
+          {
+            "node": "Compute Outreach Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Classification": {
+      "main": [
+        [
+          {
+            "node": "Write Lead to Airtable",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Postgres Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Baserow Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Supabase Write Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write Lead to Airtable",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Postgres Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Baserow Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Supabase Write Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write Lead to Airtable",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Postgres Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Baserow Write Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Supabase Write Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Lead to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Slack (Hot Lead)": {
+      "main": [
+        []
+      ]
+    },
+    "Normalize Lead Shape": {
+      "main": [
+        [
+          {
+            "node": "Extract Phone From Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Webhook": {
+      "main": [
+        [
+          {
+            "node": "Redis - Get Dedup Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (Duplicate)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redis - Set Dedup Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Contact Validity": {
+      "main": [
+        [
+          {
+            "node": "Compute Fit Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200": {
+      "main": [
+        [
+          {
+            "node": "Is Hot (Extra Channels)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Hot (Extra Channels)": {
+      "main": [
+        [
+          {
+            "node": "Slack Notify Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Discord Notify Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Notify Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "ntfy Notify Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Notify Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notion Notify Enabled?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp Notify Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Webhook - FB Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Check FB Verify Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check FB Verify Token": {
+      "main": [
+        [
+          {
+            "node": "Is Valid FB Verify?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid FB Verify?": {
+      "main": [
+        [
+          {
+            "node": "Respond FB Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 403 (FB Verify Failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is FB Comment Non-Add Event?": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (FB Event Ignored)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is FB Comment (Needs Fetch)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is FB Comment (Needs Fetch)?": {
+      "main": [
+        [
+          {
+            "node": "Fetch FB Comment Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compute Contact Validity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch FB Comment Text": {
+      "main": [
+        [
+          {
+            "node": "Merge FB Comment Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge FB Comment Message": {
+      "main": [
+        [
+          {
+            "node": "Compute Contact Validity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scoring Config": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Fit Score": {
+      "main": [
+        [
+          {
+            "node": "Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Intent Score": {
+      "main": [
+        [
+          {
+            "node": "Combine Lead Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Lead Score": {
+      "main": [
+        [
+          {
+            "node": "Format Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Redis - Update Lead Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Customer Identity": {
+      "main": [
+        [
+          {
+            "node": "Route by Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Phone From Message": {
+      "main": [
+        [
+          {
+            "node": "Is FB Comment Non-Add Event?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Outreach Channel": {
+      "main": [
+        [
+          {
+            "node": "Resolve Customer Identity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Get Dedup Key": {
+      "main": [
+        [
+          {
+            "node": "Merge Redis Dedup Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Set Dedup Key": {
+      "main": [
+        [
+          {
+            "node": "Stamp Received At",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Redis Dedup Result": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Content Hash": {
+      "main": [
+        [
+          {
+            "node": "Redis - Get AI Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Get AI Cache": {
+      "main": [
+        [
+          {
+            "node": "Merge AI Cache Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge AI Cache Result": {
+      "main": [
+        [
+          {
+            "node": "AI Cache Hit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Cache Hit?": {
+      "main": [
+        [
+          {
+            "node": "Use Cached AI Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Claude Haiku - Classify Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use Cached AI Result": {
+      "main": [
+        [
+          {
+            "node": "Compute Intent Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Set AI Cache": {
+      "main": [
+        [
+          {
+            "node": "Compute Intent Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Write Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Write Lead to Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Write Lead to Postgres": {
+      "main": [
+        [
+          {
+            "node": "Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "Update Embedding in Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Raw Payload": {
+      "main": [
+        [
+          {
+            "node": "Archive Raw Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archive Raw Payload": {
+      "main": [
+        [
+          {
+            "node": "Restore After Archive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore After Archive": {
+      "main": [
+        [
+          {
+            "node": "Redis - Append Event Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis - Append Event Log": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets Write Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Write Lead to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Baserow Write Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Write Lead to Baserow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Supabase Write Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Write Lead to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Slack Notify Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack (Hot Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Discord Notify Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Notify Discord (Hot Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Telegram Notify Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Notify Telegram Group (Hot Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "ntfy Notify Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Notify ntfy (Hot Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Email Notify Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Send Email (Hot Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Notion Notify Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Notify Notion (Hot Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "WhatsApp Notify Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Notify WhatsApp (Hot Lead)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "binaryMode": "separate"
+  },
+  "active": false
+}

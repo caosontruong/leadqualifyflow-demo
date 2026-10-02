@@ -1,0 +1,144 @@
+{
+  "version": "0.1",
+  "created": "2026-10-01",
+  "note": "Fictional personas. Emails use @example.com; English phone numbers use the fictional NANP 555-01xx range; Vietnamese numbers are fake, do not call or message. Inputs are chosen by us; outputs (Classification, Confidence, Draft Reply, Lead Score) are produced by the pipeline and are not edited by hand.",
+  "records": [
+    {
+      "id": "EN-01",
+      "locale": "en",
+      "role": "hero",
+      "target": "hot",
+      "payload": {
+        "name": "Sarah Mitchell",
+        "email": "sarah.mitchell@example.com",
+        "phone": "+14155550142",
+        "message": "We just got budget approval and want to roll this out next week, please send me a quote for the Pro plan",
+        "source": "typeform"
+      }
+    },
+    {
+      "id": "EN-02",
+      "locale": "en",
+      "role": "hot",
+      "target": "hot",
+      "payload": {
+        "name": "Daniel Okafor",
+        "email": "daniel.okafor@example.com",
+        "phone": "+13125550167",
+        "message": "Our operations director signed off the budget for this quarter. We need 200 seats live by the end of next month. What is the pricing for the Pro plan?",
+        "source": "typeform"
+      }
+    },
+    {
+      "id": "EN-03",
+      "locale": "en",
+      "role": "hot",
+      "target": "hot",
+      "payload": {
+        "name": "Priya Nair",
+        "email": "priya.nair@example.com",
+        "phone": "+12065550118",
+        "message": "We have approval to purchase and want to start onboarding in two weeks. Can you send a quote and a proposed start date?",
+        "source": "tally"
+      }
+    },
+    {
+      "id": "EN-04",
+      "locale": "en",
+      "role": "warm-partial-contact",
+      "target": "warm",
+      "payload": {
+        "name": "Tom Becker",
+        "email": "tom.becker@example.com",
+        "message": "I am comparing a few lead routing tools for our sales team. Does your system integrate with HubSpot and Slack?",
+        "source": "typeform"
+      }
+    },
+    {
+      "id": "EN-05",
+      "locale": "en",
+      "role": "warm-vague-intent",
+      "target": "warm",
+      "payload": {
+        "name": "Aisha Rahman",
+        "email": "aisha.rahman@example.com",
+        "phone": "+17185550129",
+        "message": "Curious how this would work for a small agency like ours. Is there a demo video I could watch?",
+        "source": "google_forms"
+      }
+    },
+    {
+      "id": "EN-06",
+      "locale": "en",
+      "role": "cold-spam",
+      "target": "cold",
+      "payload": {
+        "name": "J Smith",
+        "email": "seo.offers@example.com",
+        "message": "Check out our SEO packages. Rank number one on Google guaranteed! Reply now for 50 percent off.",
+        "source": "typeform"
+      }
+    },
+    {
+      "id": "VI-01",
+      "locale": "vi",
+      "role": "hot",
+      "target": "hot",
+      "payload": {
+        "name": "Nguyễn Thu Hà",
+        "phone": "0900000011",
+        "message": "Chị muốn đặt 30 bộ đồng phục cho nhân viên công ty, cần giao trong tuần sau. Em báo giá giúp chị nhé, ngân sách chị đã duyệt rồi.",
+        "source": "zalo"
+      }
+    },
+    {
+      "id": "VI-02",
+      "locale": "vi",
+      "role": "hot",
+      "target": "hot",
+      "payload": {
+        "name": "Trần Quốc Bảo",
+        "email": "bao.tran@example.com",
+        "phone": "0900000012",
+        "message": "Bên mình đang mở thêm chi nhánh thứ hai và cần hệ thống nhận khách từ Zalo và Facebook trong tháng này. Cho mình xin báo giá và lịch triển khai.",
+        "source": "typeform"
+      }
+    },
+    {
+      "id": "VI-03",
+      "locale": "vi",
+      "role": "warm-vague-intent",
+      "target": "warm",
+      "payload": {
+        "name": "Lê Minh Châu",
+        "phone": "0900000013",
+        "message": "Shop mình bán đồ handmade, thấy bên bạn làm tự động trả lời khách. Không biết có phù hợp với shop nhỏ không?",
+        "source": "zalo"
+      }
+    },
+    {
+      "id": "VI-04",
+      "locale": "vi",
+      "role": "warm-partial-contact",
+      "target": "warm",
+      "payload": {
+        "name": "Phạm Anh Tuấn",
+        "email": "tuan.pham@example.com",
+        "message": "Mình đang tìm giải pháp quản lý khách hàng cho phòng khám nha khoa. Bên bạn có tích hợp Google Sheets không?",
+        "source": "typeform"
+      }
+    },
+    {
+      "id": "VI-05",
+      "locale": "vi",
+      "role": "cold-spam",
+      "target": "cold",
+      "payload": {
+        "name": "Khuyến Mãi",
+        "email": "khuyen.mai@example.com",
+        "message": "Mua follow Facebook giá rẻ, tăng tương tác nhanh, liên hệ ngay để được giảm 50 phần trăm.",
+        "source": "typeform"
+      }
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "name": "LeadQualifyFlow - Error Handler",
+  "nodes": [
+    {
+      "id": "error_trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "log_error",
+      "name": "Log Error Details",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "workflowName",
+              "type": "string",
+              "value": "={{$json.workflow.name}}"
+            },
+            {
+              "id": "e2",
+              "name": "failedNode",
+              "type": "string",
+              "value": "={{$json.execution.lastNodeExecuted}}"
+            },
+            {
+              "id": "e3",
+              "name": "errorMessage",
+              "type": "string",
+              "value": "={{$json.execution.error.message}}"
+            },
+            {
+              "id": "e4",
+              "name": "executionId",
+              "type": "string",
+              "value": "={{$json.execution.id}}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Log Error Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
