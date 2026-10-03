@@ -1,6 +1,6 @@
 {
   "id": "lqfGetTopLeads01",
-  "name": "LeadQualifyFlow - Get Top Leads (AC-24)",
+  "name": "LeadQualifyFlow - Get Top Leads",
   "nodes": [
     {
       "parameters": {

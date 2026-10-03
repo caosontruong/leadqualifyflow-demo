@@ -1,6 +1,6 @@
 {
   "id": "lqfReplayEvents01",
-  "name": "LeadQualifyFlow - Replay Event Log (AC-23)",
+  "name": "LeadQualifyFlow - Replay Event Log",
   "nodes": [
     {
       "parameters": {

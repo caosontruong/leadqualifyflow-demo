@@ -37,7 +37,7 @@ In one recorded run the webhook acknowledged in about 0.2 s and the Slack alert 
 
 | Path | Content |
 |---|---|
-| `workflows/LeadQualifyFlow-MVP-01.json` | The main pipeline (77 nodes). Start here. |
+| `workflows/LeadQualifyFlow-Main-Pipeline.json` | The main pipeline (77 nodes). Start here. |
 | `workflows/LeadQualifyFlow-Error-Handler.json` | Error Trigger workflow for uncaught failures |
 | `workflows/` (4 more) | Optional and not covered by the quick start checks: top leads, semantic search (Postgres + pgvector, Ollama), event log replay, ops dashboard |
 | `examples/` | Ready-to-send leads: `hot-lead.json`, `cold-lead.json`, `invalid-lead.json` |
