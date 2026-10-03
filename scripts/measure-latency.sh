@@ -5,14 +5,14 @@
 # Every lead uses DIFFERENT content (avoids dedup and the AI cache). The first 2 runs are warm-up (reported separately).
 # Usage:  scripts/measure-latency.sh [RUNS=12] [GAP_SECONDS=20] [LABEL=run]
 #         (example labels: minimal | full; result file: results/latency_runs_<label>.json)
-# Requires: LQF_WORKFLOW_ID (id of the imported MVP-01 workflow). Reads N8N_API_KEY / N8N_WEBHOOK_PATH from the local .env; prints measurements only, never secrets.
+# Requires: the stack started with docker compose and scripts/setup-n8n.py done. Reads N8N_API_KEY / N8N_WEBHOOK_PATH from the local .env; prints measurements only, never secrets.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 set -a; . ./.env; set +a
 export N_RUNS="${1:-12}" GAP="${2:-20}" LABEL="${3:-run}"
-export BASE="${N8N_BASE:-http://127.0.0.1:5679}"
+export BASE="${N8N_BASE:-http://127.0.0.1:${N8N_HOST_PORT:-5679}}"
 export WEBHOOK_PATH="${N8N_WEBHOOK_PATH:-lead-intake}"
-export WORKFLOW_ID="${LQF_WORKFLOW_ID:?Set LQF_WORKFLOW_ID to the id of the imported MVP-01 workflow}"
+export WORKFLOW_ID="${LQF_WORKFLOW_ID:-lqfMainPipeline01}"
 : "${N8N_API_KEY:?N8N_API_KEY is missing in .env (create it in the n8n UI: Settings -> n8n API)}"
 export OUT="results/latency_runs_${LABEL}.json"
 python3 - <<'PY'
@@ -77,13 +77,13 @@ def find_execution(marker, tries=40):
 
 def container_flags():
     try:
-        o=subprocess.run(["docker","exec","leadqualifyflow-n8n","sh","-c","printenv | grep '^ENABLE_'"],capture_output=True,text=True,timeout=20).stdout
+        o=subprocess.run(["docker","compose","exec","-T","n8n","sh","-c","printenv | grep '^ENABLE_'"],capture_output=True,text=True,timeout=20).stdout
         return dict(l.split("=",1) for l in sorted(o.strip().splitlines()) if "=" in l)
     except Exception as e:
         return {"error":str(e)}
 def running():
     try:
-        o=subprocess.run(["docker","ps","--format","{{.Names}}"],capture_output=True,text=True,timeout=20).stdout.split()
+        o=subprocess.run(["docker","compose","ps","--status","running","--services"],capture_output=True,text=True,timeout=20).stdout.split()
         return sorted(o)
     except Exception: return []
 FLAGS=container_flags(); CONTAINERS=running()

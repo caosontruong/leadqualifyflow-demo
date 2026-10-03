@@ -1,85 +1,82 @@
-# Local demo stack. Everything is bound to 127.0.0.1; do not expose these ports.
-# The passwords below are for this local demo only. Change them if you reuse the stack for anything else.
+# Local demo stack. Only n8n is published on the host, and only on 127.0.0.1.
+# Passwords below are for this local demo only. Change them if you reuse the stack for anything else.
 # Core services: n8n, redis, mongo.   Optional (profile "extras"): postgres, ollama, baserow.
 #   docker compose up -d                         # core
 #   docker compose --profile extras up -d        # core + optional services
+# No container names or fixed host ports other than n8n, so this stack can run beside other stacks.
+# Change the n8n port with N8N_HOST_PORT in .env.
 services:
   n8n:
-    image: n8nio/n8n:latest   # pin a tested version before relying on this
-    container_name: leadqualifyflow-n8n
+    image: n8nio/n8n:2.36.7
     restart: unless-stopped
     ports:
-      - "127.0.0.1:5679:5678"
+      - "127.0.0.1:${N8N_HOST_PORT:-5679}:5678"
     environment:
       - N8N_SECURE_COOKIE=false          # local http only
-      - N8N_WEBHOOK_URL=http://localhost:5679/
+      - N8N_WEBHOOK_URL=http://localhost:${N8N_HOST_PORT:-5679}/
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false   # the workflows read $env.* (see .env.example)
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Ho_Chi_Minh}   # timestamps such as Received At
+      - TZ=${GENERIC_TIMEZONE:-Asia/Ho_Chi_Minh}
     env_file:
       - .env
+    depends_on:
+      - redis
+      - mongo
     volumes:
       - n8n_data:/home/node/.n8n
 
   redis:
-    image: redis:7-alpine
-    container_name: leadqualifyflow-redis
+    image: redis:7.4-alpine
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
 
   mongo:
-    image: mongo:7
-    container_name: leadqualifyflow-mongo
+    image: mongo:7.0
     restart: unless-stopped
     environment:
       - MONGO_INITDB_ROOT_USERNAME=leadqualifyflow
       - MONGO_INITDB_ROOT_PASSWORD=leadqualifyflow_demo_local_only
-    ports:
-      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
 
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: leadqualifyflow-postgres
     profiles: ["extras"]
     restart: unless-stopped
     environment:
       - POSTGRES_USER=leadqualifyflow
       - POSTGRES_PASSWORD=leadqualifyflow_demo_local_only
       - POSTGRES_DB=leadqualifyflow
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   ollama:
-    image: ollama/ollama:latest
-    container_name: leadqualifyflow-ollama
+    image: ollama/ollama:0.34.4
     profiles: ["extras"]
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/root/.ollama
 
   baserow:
     image: baserow/baserow:1.21.1
-    container_name: leadqualifyflow-baserow
     profiles: ["extras"]
     restart: unless-stopped
     environment:
-      - BASEROW_PUBLIC_URL=http://localhost:8085
+      - BASEROW_PUBLIC_URL=http://localhost:${BASEROW_HOST_PORT:-8085}
       - BASEROW_EXTRA_ALLOWED_HOSTS=baserow
     ports:
-      - "127.0.0.1:8085:80"
+      - "127.0.0.1:${BASEROW_HOST_PORT:-8085}:80"
     volumes:
       - baserow_data:/baserow/data
 
 volumes:
   n8n_data:
+  redis_data:
   mongo_data:
   postgres_data:
   ollama_data:

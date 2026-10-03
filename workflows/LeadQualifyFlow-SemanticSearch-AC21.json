@@ -1,4 +1,5 @@
 {
+  "id": "lqfSemanticSearch1",
   "name": "LeadQualifyFlow - Semantic Search (AC-21)",
   "nodes": [
     {
@@ -54,8 +55,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Postgres"
+          "id": "lqf-postgres",
+          "name": "Postgres (LeadQualifyFlow)"
         }
       }
     },

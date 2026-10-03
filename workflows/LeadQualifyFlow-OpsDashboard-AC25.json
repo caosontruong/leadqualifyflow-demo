@@ -1,4 +1,5 @@
 {
+  "id": "lqfOpsDashboard01",
   "name": "LeadQualifyFlow - Ops Dashboard (AC-25)",
   "nodes": [
     {
@@ -62,7 +63,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=http://localhost:5678/api/v1/workflows/REPLACE_WITH_MVP01_WORKFLOW_ID",
+        "url": "=http://localhost:5678/api/v1/workflows/lqfMainPipeline01",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

@@ -6,7 +6,7 @@
 # Usage:  scripts/seed-demo.sh <select> [GAP_SECONDS=12] [-y]
 #   <select> = en | vi | all | comma-separated record IDs (e.g. VI-01 or EN-01,EN-02)
 # Output: results/demo-run-<timestamp>.json  (provenance label: sample-data)
-# Requires: LQF_WORKFLOW_ID (the id of the imported "LeadQualifyFlow - MVP-01" workflow, visible in its n8n URL)
+# Requires: the stack started with docker compose, scripts/setup-n8n.py done, N8N_API_KEY in .env
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SEL="${1:-}"; GAP="${2:-12}"; YES="${3:-}"
@@ -14,10 +14,9 @@ SEL="${1:-}"; GAP="${2:-12}"; YES="${3:-}"
 [ "$GAP" = "-y" ] && { YES="-y"; GAP=12; }
 set -a; . ./.env; set +a
 : "${N8N_API_KEY:?N8N_API_KEY is missing in .env}"
-: "${LQF_WORKFLOW_ID:?Set LQF_WORKFLOW_ID to the id of the imported MVP-01 workflow}"
-export SEL GAP BASE="${N8N_BASE:-http://127.0.0.1:5679}" WEBHOOK_PATH="${N8N_WEBHOOK_PATH:-lead-intake}" WORKFLOW_ID="$LQF_WORKFLOW_ID"
+export SEL GAP BASE="${N8N_BASE:-http://127.0.0.1:${N8N_HOST_PORT:-5679}}" WEBHOOK_PATH="${N8N_WEBHOOK_PATH:-lead-intake}" WORKFLOW_ID="${LQF_WORKFLOW_ID:-lqfMainPipeline01}"
 echo "Current targets: Airtable base ...${AIRTABLE_BASE_ID: -4}, table '${AIRTABLE_TABLE_NAME:-?}'; Slack webhook ...${SLACK_WEBHOOK_URL: -4}"
-echo "ENABLE_* flags in the container:"; docker exec leadqualifyflow-n8n sh -c "printenv | grep '^ENABLE_'" | sort | sed 's/^/  /'
+echo "ENABLE_* flags in the container:"; docker compose exec -T n8n sh -c "printenv | grep '^ENABLE_'" | sort | sed 's/^/  /'
 if [ "$YES" != "-y" ]; then read -r -p "Are these DEMO targets (not a real base/channel)? Type y to continue: " a; [ "$a" = "y" ] || { echo "Stopped."; exit 1; }; fi
 python3 - <<'PY'
 import json, os, re, subprocess, time, urllib.request, datetime

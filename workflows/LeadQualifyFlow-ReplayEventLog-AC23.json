@@ -1,4 +1,5 @@
 {
+  "id": "lqfReplayEvents01",
   "name": "LeadQualifyFlow - Replay Event Log (AC-23)",
   "nodes": [
     {
@@ -36,8 +37,8 @@
       ],
       "credentials": {
         "redis": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Redis"
+          "id": "lqf-redis",
+          "name": "Redis (LeadQualifyFlow)"
         }
       }
     },

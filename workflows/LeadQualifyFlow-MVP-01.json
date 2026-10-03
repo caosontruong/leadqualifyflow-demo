@@ -1,4 +1,5 @@
 {
+  "id": "lqfMainPipeline01",
   "name": "LeadQualifyFlow - MVP-01",
   "nodes": [
     {
@@ -123,8 +124,8 @@
       ],
       "credentials": {
         "anthropicApi": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Anthropic"
+          "id": "lqf-anthropic",
+          "name": "Anthropic (LeadQualifyFlow)"
         }
       },
       "onError": "continueRegularOutput"
@@ -1112,8 +1113,8 @@
       ],
       "credentials": {
         "redis": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Redis"
+          "id": "lqf-redis",
+          "name": "Redis (LeadQualifyFlow)"
         }
       }
     },
@@ -1136,8 +1137,8 @@
       ],
       "credentials": {
         "redis": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Redis"
+          "id": "lqf-redis",
+          "name": "Redis (LeadQualifyFlow)"
         }
       }
     },
@@ -1187,8 +1188,8 @@
       ],
       "credentials": {
         "redis": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Redis"
+          "id": "lqf-redis",
+          "name": "Redis (LeadQualifyFlow)"
         }
       }
     },
@@ -1272,8 +1273,8 @@
       ],
       "credentials": {
         "redis": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Redis"
+          "id": "lqf-redis",
+          "name": "Redis (LeadQualifyFlow)"
         }
       }
     },
@@ -1328,8 +1329,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Postgres"
+          "id": "lqf-postgres",
+          "name": "Postgres (LeadQualifyFlow)"
         }
       },
       "onError": "continueRegularOutput"
@@ -1371,8 +1372,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Postgres"
+          "id": "lqf-postgres",
+          "name": "Postgres (LeadQualifyFlow)"
         }
       },
       "onError": "continueRegularOutput"
@@ -1408,8 +1409,8 @@
       ],
       "credentials": {
         "mongoDb": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "MongoDB"
+          "id": "lqf-mongodb",
+          "name": "MongoDB (LeadQualifyFlow)"
         }
       },
       "onError": "continueRegularOutput"
@@ -1445,8 +1446,8 @@
       ],
       "credentials": {
         "redis": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Redis"
+          "id": "lqf-redis",
+          "name": "Redis (LeadQualifyFlow)"
         }
       },
       "onError": "continueRegularOutput"
@@ -1468,8 +1469,8 @@
       ],
       "credentials": {
         "redis": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Redis"
+          "id": "lqf-redis",
+          "name": "Redis (LeadQualifyFlow)"
         }
       },
       "onError": "continueRegularOutput"
@@ -2884,7 +2885,8 @@
     "executionOrder": "v1",
     "saveDataErrorExecution": "all",
     "saveDataSuccessExecution": "all",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "errorWorkflow": "lqfErrorHandler01"
   },
   "active": false
 }

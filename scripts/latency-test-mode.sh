@@ -23,10 +23,11 @@ for key in $keys; do
 done
 echo "(other variables unchanged)"
 echo "==> Recreating the n8n container to pick up the new environment"
+set -a; . ./.env; set +a
 docker compose up -d --force-recreate n8n >/dev/null
 for i in $(seq 1 30); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:5679/healthz || true)
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:${N8N_HOST_PORT:-5679}/healthz || true)
   [ "$code" = "200" ] && { echo "OK — n8n healthz 200"; exit 0; }
   sleep 2
 done
-echo "n8n is not healthy after 60s; check: docker logs leadqualifyflow-n8n"; exit 1
+echo "n8n is not healthy after 60s; check: docker compose logs n8n"; exit 1

@@ -1,4 +1,5 @@
 {
+  "id": "lqfGetTopLeads01",
   "name": "LeadQualifyFlow - Get Top Leads (AC-24)",
   "nodes": [
     {
@@ -36,8 +37,8 @@
       ],
       "credentials": {
         "redis": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Redis"
+          "id": "lqf-redis",
+          "name": "Redis (LeadQualifyFlow)"
         }
       }
     },
@@ -88,8 +89,8 @@
       ],
       "credentials": {
         "postgres": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Postgres"
+          "id": "lqf-postgres",
+          "name": "Postgres (LeadQualifyFlow)"
         }
       },
       "onError": "continueRegularOutput"
