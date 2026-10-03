@@ -61,7 +61,7 @@ Use demo accounts for Airtable and Slack: the pipeline writes real records and s
 1. **Configure.** `cp .env.example .env`, then fill in `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID` (the `app...` part of the base URL), `SLACK_WEBHOOK_URL` and `ANTHROPIC_API_KEY`. Leave the rest. If port 5679 is taken, set `N8N_HOST_PORT`. Set `GENERIC_TIMEZONE` to your time zone (it decides the time in the `Received At` field).
 2. **Start the stack.** `docker compose up -d` (the first start downloads the images). Only n8n is published on your machine, on `127.0.0.1`.
 3. **Create the Airtable tables.** `python3 scripts/setup-airtable.py` creates the tables `Leads` and `Customers` with the 29 fields the workflow writes. It is safe to run again; add `--check` to only report differences.
-4. **Create the n8n owner account.** Open http://127.0.0.1:5679 and fill in the first-run form (any email and password; the account only exists on your machine).
+4. **Create the n8n owner account.** Open http://127.0.0.1:5679 (use your `N8N_HOST_PORT` if you changed it; the examples below also assume 5679) and fill in the first-run form (any email and password; the account only exists on your machine).
 5. **Set up n8n.** `python3 scripts/setup-n8n.py` creates the credentials (Redis, MongoDB, Anthropic), imports the workflows with those credentials already attached, publishes the main workflow, restarts n8n and checks the result. Add `--extras` to also publish the optional workflows (start the stack with `docker compose --profile extras up -d` first; these are not covered by the checks below).
 6. **Send test leads** (see below).
 
